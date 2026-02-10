@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Configuration
-P=8
-D1=2
-D2=4
-T=10
-SEED=1000
-OUTPUT_FILE="results_P$P.txt"
+P = 8
+D1 = 2
+D2 = 4
+T = 10 
+SEED = 1000
+OUTPUT_FILE = "results_P$P.txt"
 
 # Clear previous results
 > $OUTPUT_FILE

@@ -196,6 +196,13 @@ int main(int argc, char *argv[])
           printf("%lf %lf %lf\n", global_max_D1, global_max_D2, end_time - start_time);
      }
 
+     free(data_to_send_D1);
+     free(data_to_send_D2);
+     free(recv_buf_D1);
+     free(recv_buf_D2);
+     free(data_recvd_from_D1);
+     free(data_recvd_from_D2);
+     
      MPI_Finalize();
      return 0;
 }
