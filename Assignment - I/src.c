@@ -236,42 +236,8 @@ int main(int argc, char *argv[])
 
      /* Global reduction */
      double global_max_D1, global_max_D2, incoming_val;
-     if (rank == 0)
-     {
-          // Rank 0 initializes global max with its own local max
-          global_max_D1 = local_max_D1;
-          global_max_D2 = local_max_D2;
-          
-          // Loop to receive from all other processes
-          for (int source = 1; source < P; source++)
-          {
-               // Receive D1 from neighbor 'source' with tag 500
-               if (source + D1 < P) 
-               {
-                    MPI_Recv(&incoming_val, 1, MPI_DOUBLE, source, 500, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    if (incoming_val > global_max_D1) global_max_D1 = incoming_val;
-               }
-  
-               // Receive D2 from neighbor 'source' with tag 501
-               if (source + D2 < P) {
-                    MPI_Recv(&incoming_val, 1, MPI_DOUBLE, source, 501, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    if (incoming_val > global_max_D2) global_max_D2 = incoming_val;
-               }
-          }
-     }
-     else
-     {
-          // All other ranks send their data to Rank 0
-          if (i_am_sender_D1)
-          {
-               MPI_Send(&local_max_D1, 1, MPI_DOUBLE, 0, 500, MPI_COMM_WORLD);
-          }
-
-          if (i_am_sender_D2)
-          {
-               MPI_Send(&local_max_D2, 1, MPI_DOUBLE, 0, 501, MPI_COMM_WORLD);
-          }
-     }
+     global_max_D1 = local_max_D1;
+     global_max_D2 = local_max_D2;
 
      int step = 1;
 
