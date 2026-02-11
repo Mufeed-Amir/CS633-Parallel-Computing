@@ -145,14 +145,12 @@ int main(int argc, char *argv[])
           {
                for (int i = 0; i < M; i++)
                {
-                    double combined = data_recvd_from_D1[i];
                     if (i_am_sender_D2)
                     {
-                         combined += data_recvd_from_D2[i];
+                         data_to_send_D2[i] = data_recvd_from_D2[i] * 100000.0;
                     }
-
-                    data_to_send_D1[i] = (double)((unsigned long long)combined % 100000);
-                    data_to_send_D2[i] = combined * 100000.0;
+                    
+                    data_to_send_D1[i] = (double)((unsigned long long)data_recvd_from_D1[i] % 100000);
                }
           }
      }
@@ -184,14 +182,12 @@ int main(int argc, char *argv[])
      }
 
      /* Global reduction */
-     double global_max_D1, global_max_D2;
+     double global_max_D1, global_max_D2, incoming_val;
      if (rank == 0)
      {
           // Rank 0 initializes global max with its own local max
           global_max_D1 = local_max_D1;
           global_max_D2 = local_max_D2;
-
-          double incoming_val;
           
           // Loop to receive from all other processes
           for (int source = 1; source < P; source++)
