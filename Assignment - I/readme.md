@@ -14,3 +14,7 @@ This repository contains the work for Assignment I of CS633. Follow the instruct
      mpirun -np 4 ./src.o 2 1 2 1 100
      mpirun -np 4 ./src.o 262144 2 4 10 1000
      ```
+3. Check nodes
+     ```
+          sinfo -p standard -N -o "%N"
+     ```
