@@ -79,26 +79,52 @@ int main(int argc, char *argv[])
 
      for (int t = 0; t < T; t++)
      {
-          /* Receive */
-          if (i_am_receiver_D1)
+          // D1 cycle
+          if (i_am_receiver_D1 && !i_am_sender_D1)
           {
                MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			   
           }
 
-          if (i_am_receiver_D2)
-          {
-               MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, 101, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-
-          /* Send */
-          if (i_am_sender_D1)
+          else if (i_am_sender_D1 && !i_am_receiver_D1)
           {
                MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, 100, MPI_COMM_WORLD);
           }
 
-          if (i_am_sender_D2)
+		else if(i_am_sender_D1 && i_am_receiver_D1){
+               if(rank/D1 % 2){
+                    MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, 100, MPI_COMM_WORLD);
+                    MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               }
+
+               else{
+                    MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, 100, MPI_COMM_WORLD);
+               }
+          }
+
+          // D2 cycle
+          if (i_am_receiver_D2 && !i_am_sender_D2)
+          {
+               MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, 101, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			   
+          }
+
+          else if (i_am_sender_D2 && !i_am_receiver_D2)
           {
                MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, 101, MPI_COMM_WORLD);
+          }
+
+		else if(i_am_sender_D2 && i_am_receiver_D2){
+               if(rank/D2 % 2){
+                    MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, 101, MPI_COMM_WORLD);
+                    MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, 101, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               }
+
+               else{
+                    MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, 101, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, 101, MPI_COMM_WORLD);
+               }
           }
 
           /* Compute */
@@ -118,39 +144,66 @@ int main(int argc, char *argv[])
                }
           }
 
-          /* Return results */
-          if (i_am_receiver_D1)
+          if (i_am_receiver_D1 && !i_am_sender_D1)
           {
                MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, 200, MPI_COMM_WORLD);
           }
 
-          if (i_am_receiver_D2)
-          {
-               MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, 201, MPI_COMM_WORLD);
-          }
-
-          /* Collect results */
-          if (i_am_sender_D1)
+          else if (i_am_sender_D1 && !i_am_receiver_D1)
           {
                MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, 200, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
           }
 
-          if (i_am_sender_D2)
+		else if(i_am_sender_D1 && i_am_receiver_D1){
+               if(rank/D1 % 2){
+                    MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, 200, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, 200, MPI_COMM_WORLD);
+               }
+
+               else{
+                    MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, 200, MPI_COMM_WORLD);
+                    MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, 200, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               }
+          }
+
+          // D2 cycle
+          if (i_am_receiver_D2 && !i_am_sender_D2)
+          {
+               MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, 201, MPI_COMM_WORLD);
+			   
+          }
+
+          else if (i_am_sender_D2 && !i_am_receiver_D2)
           {
                MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, 201, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          }
+
+		else if(i_am_sender_D2 && i_am_receiver_D2){
+               if(rank/D2 % 2){
+                    MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, 201, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, 201, MPI_COMM_WORLD);
+               }
+
+               else{
+                    MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, 201, MPI_COMM_WORLD);
+                    MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, 201, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               }
           }
 
           /* Prepare next iteration */
           if (i_am_sender_D1)
           {
                for (int i = 0; i < M; i++)
-               {
-                    if (i_am_sender_D2)
-                    {
-                         data_to_send_D2[i] = data_recvd_from_D2[i] * 100000.0;
-                    }
-                    
+               {    
                     data_to_send_D1[i] = (double)((unsigned long long)data_recvd_from_D1[i] % 100000);
+               }
+          }
+
+          if(i_am_sender_D2)
+          {
+               for (int i = 0; i < M; i++)
+               {
+                    data_to_send_D2[i] = data_recvd_from_D2[i] * 100000.0;
                }
           }
      }
@@ -220,11 +273,34 @@ int main(int argc, char *argv[])
           }
      }
 
+     int step = 1;
+
+     while(step < P){
+          int partner = rank ^ step;
+
+          if(partner < P){
+               if(rank < partner){
+                    double recv_val_D1, recv_val_D2;
+                    MPI_Recv(&recv_val_D1, 1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Recv(&recv_val_D2, 1, MPI_DOUBLE, partner, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    global_max_D1 = fmax(global_max_D1, recv_val_D1);
+                    global_max_D2 = fmax(global_max_D2, recv_val_D2);
+               }
+               else{
+                    MPI_Send(&global_max_D1, 1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
+                    MPI_Send(&global_max_D2, 1, MPI_DOUBLE, partner, 1, MPI_COMM_WORLD);
+                    break;
+               }
+          }
+
+          step <<= 1;
+     }
+
      double end_time = MPI_Wtime();
      double local_time = end_time - start_time;
-     double max_time;
+     double max_time = local_time;
 
-     MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+     // MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
      /* Print only at rank 0 */
      if (rank == 0) {
