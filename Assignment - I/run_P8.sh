@@ -1,0 +1,43 @@
+#!/bin/bash
+
+#SBATCH --job-name=bench_P8
+#SBATCH -N 1                       # Request 1 Node
+#SBATCH --ntasks-per-node=8       # Allocate half node (8 cores)
+#SBATCH --output=results_P8_%j.out # Save output to specific P8 file
+#SBATCH --error=results_P8_%j.err
+#SBATCH --partition=cpu
+#SBATCH --time=00:10:00
+
+# --- Configuration ---
+P=8
+D1=2
+D2=4
+T=10
+SEED=1000
+M1=262144
+M2=1048576
+
+echo "=========================================="
+echo "Starting Experiment for P=$P"
+echo "Node Allocation: $SLURM_JOB_NUM_NODES nodes"
+echo "=========================================="
+
+module purge
+module load compiler/gcc/12.3
+module load compiler/openmpi/4.1.5
+
+# --- Execution Loop (Repeat 5 times) ---
+for i in {1..5}
+do
+    echo "Iteration $i of 5..."
+
+    # Configuration 1: M = 262,144
+    echo "  [P=$P][M=$M1] Running..."
+    mpirun -np $P ./src_exec $M1 $D1 $D2 $T $SEED
+
+    # Configuration 2: M = 1,048,576
+    echo "  [P=$P][M=$M2] Running..."
+    mpirun -np $P ./src_exec $M2 $D1 $D2 $T $SEED
+done
+
+echo "Experiment P=$P Complete."
