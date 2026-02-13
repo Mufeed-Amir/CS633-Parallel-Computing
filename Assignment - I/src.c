@@ -130,13 +130,13 @@ int main(int argc, char *argv[])
                // Middle: Parity Check
                if ((rank / D1) % 2 != 0)
                { // Odd parity block
-                    MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, TAG_FWD_D1, MPI_COMM_WORLD);
                     MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_FWD_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, TAG_FWD_D1, MPI_COMM_WORLD);
                }
                else
                { // Even parity block
-                    MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_FWD_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, TAG_FWD_D1, MPI_COMM_WORLD);
+                    MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_FWD_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                }
           }
 
@@ -153,13 +153,13 @@ int main(int argc, char *argv[])
           {
                if ((rank / D2) % 2 != 0)
                {
-                    MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, TAG_FWD_D2, MPI_COMM_WORLD);
                     MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_FWD_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, TAG_FWD_D2, MPI_COMM_WORLD);
                }
                else
                {
-                    MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_FWD_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, TAG_FWD_D2, MPI_COMM_WORLD);
+                    MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_FWD_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                }
           }
 
@@ -199,13 +199,13 @@ int main(int argc, char *argv[])
                // Use same parity logic as forward phase to maintain non-blocking behavior
                if ((rank / D1) % 2 != 0)
                {
-                    MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, TAG_RET_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_RET_D1, MPI_COMM_WORLD);
+                    MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, TAG_RET_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                }
                else
                {
-                    MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_RET_D1, MPI_COMM_WORLD);
                     MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, TAG_RET_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_RET_D1, MPI_COMM_WORLD);
                }
           }
 
@@ -222,13 +222,13 @@ int main(int argc, char *argv[])
           {
                if ((rank / D2) % 2 != 0)
                {
-                    MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, TAG_RET_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_RET_D2, MPI_COMM_WORLD);
+                    MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, TAG_RET_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                }
                else
                {
-                    MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_RET_D2, MPI_COMM_WORLD);
                     MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, TAG_RET_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_RET_D2, MPI_COMM_WORLD);
                }
           }
 
