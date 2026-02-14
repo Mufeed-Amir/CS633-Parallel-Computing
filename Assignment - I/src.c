@@ -41,6 +41,76 @@ static double *allocate_buffer(size_t size)
      return ptr;
 }
 
+static inline int computeTarget(const int rank, const int d){
+	return rank + d;
+}
+
+static inline int computeSource(const int rank, const int d){
+	return rank - d;
+}
+
+static inline int iAmSender(const int rank, const int d, const int P){
+	return computeTarget(rank, d) < P;
+}
+
+static inline int iAmReceiver(const int rank, const int d, const int P){
+	return computeSource(rank, d) >= 0;
+}
+
+void doCommunication(const int rank, const int d, const int P, const int M, double* recv_buf, double* data_to_send, int tag, int is_forward){
+     int i_am_receiver = iAmReceiver(rank, d, P);
+     int i_am_sender = iAmSender(rank, d, P);
+     int target = computeTarget(rank, d);
+     int source = computeSource(rank, d);
+     
+     if (i_am_receiver && !i_am_sender)
+     {
+          // Tail
+          if(is_forward){
+               MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          }
+          else{
+               MPI_Send(data_to_send, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD);
+          }
+     }
+     else if (i_am_sender && !i_am_receiver)
+     {
+          // Head
+          if(is_forward){
+               MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
+          }
+          else{
+               MPI_Recv(recv_buf, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          }
+     }
+     else if (i_am_sender && i_am_receiver)
+     {
+          // Middle: Parity Check
+          if ((rank / d) % 2 != 0)
+          { // Odd parity block
+               if(is_forward){
+                    MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
+               }
+               else{
+                    MPI_Send(data_to_send, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD);
+                    MPI_Recv(recv_buf, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               }
+          }
+          else
+          { // Even parity block
+               if(is_forward){
+                    MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
+                    MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               }
+               else{
+                    MPI_Recv(recv_buf, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Send(data_to_send, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD);
+               }
+          }
+     }
+}
+
 int main(int argc, char *argv[])
 {
      /* --- MPI Initialization --- */
@@ -67,18 +137,6 @@ int main(int argc, char *argv[])
      int D2 = atoi(argv[3]);   // Dependency offset 2
      int T = atoi(argv[4]);    // Time steps
      int seed = atoi(argv[5]); // Random seed
-
-     /* --- Topology & Role Definitions --- */
-     int target_D1 = rank + D1;
-     int target_D2 = rank + D2;
-     int source_D1 = rank - D1;
-     int source_D2 = rank - D2;
-
-     /* Boolean flags for role identification */
-     int i_am_sender_D1 = (target_D1 < P);
-     int i_am_sender_D2 = (target_D2 < P);
-     int i_am_receiver_D1 = (source_D1 >= 0);
-     int i_am_receiver_D2 = (source_D2 >= 0);
 
      /* --- Memory Allocation --- */
      double *data_to_send_D1 = allocate_buffer(M);
@@ -115,57 +173,14 @@ int main(int argc, char *argv[])
            */
 
           /* --- D1 Chain --- */
-          if (i_am_receiver_D1 && !i_am_sender_D1)
-          {
-               // Tail: Only Recv
-               MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_FWD_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-          else if (i_am_sender_D1 && !i_am_receiver_D1)
-          {
-               // Head: Only Send
-               MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, TAG_FWD_D1, MPI_COMM_WORLD);
-          }
-          else if (i_am_sender_D1 && i_am_receiver_D1)
-          {
-               // Middle: Parity Check
-               if ((rank / D1) % 2 != 0)
-               { // Odd parity block
-                    MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_FWD_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, TAG_FWD_D1, MPI_COMM_WORLD);
-               }
-               else
-               { // Even parity block
-                    MPI_Send(data_to_send_D1, M, MPI_DOUBLE, target_D1, TAG_FWD_D1, MPI_COMM_WORLD);
-                    MPI_Recv(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_FWD_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-               }
-          }
+          doCommunication(rank, D1, P, M, recv_buf_D1, data_to_send_D1, TAG_FWD_D1, 1);
 
           /* --- D2 Chain --- */
-          if (i_am_receiver_D2 && !i_am_sender_D2)
-          {
-               MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_FWD_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-          else if (i_am_sender_D2 && !i_am_receiver_D2)
-          {
-               MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, TAG_FWD_D2, MPI_COMM_WORLD);
-          }
-          else if (i_am_sender_D2 && i_am_receiver_D2)
-          {
-               if ((rank / D2) % 2 != 0)
-               {
-                    MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_FWD_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, TAG_FWD_D2, MPI_COMM_WORLD);
-               }
-               else
-               {
-                    MPI_Send(data_to_send_D2, M, MPI_DOUBLE, target_D2, TAG_FWD_D2, MPI_COMM_WORLD);
-                    MPI_Recv(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_FWD_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-               }
-          }
+          doCommunication(rank, D2, P, M, recv_buf_D2, data_to_send_D2, TAG_FWD_D2, 1);
 
           /* * PHASE 2: Computation
            */
-          if (i_am_receiver_D1)
+          if (iAmReceiver(rank, D1, P))
           {
                for (int i = 0; i < M; i++)
                {
@@ -173,7 +188,7 @@ int main(int argc, char *argv[])
                }
           }
 
-          if (i_am_receiver_D2)
+          if (iAmReceiver(rank, D2, P))
           {
                for (int i = 0; i < M; i++)
                {
@@ -186,55 +201,14 @@ int main(int argc, char *argv[])
            */
 
           /* --- D1 Chain Results --- */
-          if (i_am_receiver_D1 && !i_am_sender_D1)
-          {
-               MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_RET_D1, MPI_COMM_WORLD);
-          }
-          else if (i_am_sender_D1 && !i_am_receiver_D1)
-          {
-               MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, TAG_RET_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-          else if (i_am_sender_D1 && i_am_receiver_D1)
-          {
-               // Use same parity logic as forward phase to maintain non-blocking behavior
-               if ((rank / D1) % 2 != 0)
-               {
-                    MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_RET_D1, MPI_COMM_WORLD);
-                    MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, TAG_RET_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-               }
-               else
-               {
-                    MPI_Recv(data_recvd_from_D1, M, MPI_DOUBLE, target_D1, TAG_RET_D1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    MPI_Send(recv_buf_D1, M, MPI_DOUBLE, source_D1, TAG_RET_D1, MPI_COMM_WORLD);
-               }
-          }
+          doCommunication(rank, D1, P, M, data_recvd_from_D1, recv_buf_D1, TAG_RET_D1, 0);
 
           /* --- D2 Chain Results --- */
-          if (i_am_receiver_D2 && !i_am_sender_D2)
-          {
-               MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_RET_D2, MPI_COMM_WORLD);
-          }
-          else if (i_am_sender_D2 && !i_am_receiver_D2)
-          {
-               MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, TAG_RET_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-          else if (i_am_sender_D2 && i_am_receiver_D2)
-          {
-               if ((rank / D2) % 2 != 0)
-               {
-                    MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_RET_D2, MPI_COMM_WORLD);
-                    MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, TAG_RET_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-               }
-               else
-               {
-                    MPI_Recv(data_recvd_from_D2, M, MPI_DOUBLE, target_D2, TAG_RET_D2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    MPI_Send(recv_buf_D2, M, MPI_DOUBLE, source_D2, TAG_RET_D2, MPI_COMM_WORLD);
-               }
-          }
+          doCommunication(rank, D2, P, M, data_recvd_from_D2, recv_buf_D2, TAG_RET_D2, 0);
 
           /* * PHASE 4: Update for Next Iteration
            */
-          if (i_am_sender_D1)
+          if (iAmSender(rank, D1, P))
           {
                for (int i = 0; i < M; i++)
                {
@@ -242,7 +216,7 @@ int main(int argc, char *argv[])
                }
           }
 
-          if (i_am_sender_D2)
+          if (iAmSender(rank, D2, P))
           {
                for (int i = 0; i < M; i++)
                {
