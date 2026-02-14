@@ -1,0 +1,50 @@
+==========================================
+SLURM_CLUSTER_NAME = paramrudra
+SLURM_ARRAY_JOB_ID = 
+SLURM_ARRAY_TASK_ID = 
+SLURM_ARRAY_TASK_COUNT = 
+SLURM_ARRAY_TASK_MAX = 
+SLURM_ARRAY_TASK_MIN = 
+SLURM_JOB_ACCOUNT = iitk
+SLURM_JOB_ID = 3251
+SLURM_JOB_NAME = bench_P8
+SLURM_JOB_NODELIST = rdcn23
+SLURM_JOB_USER = iitk_21
+SLURM_JOB_UID = 55322
+SLURM_JOB_PARTITION = cpu
+SLURM_TASK_PID = 1341961
+SLURM_SUBMIT_DIR = /home/iitk_21/bekar_chole_wale/Assignment-1
+SLURM_CPUS_ON_NODE = 8
+SLURM_NTASKS = 8
+SLURM_TASK_PID = 1341961
+==========================================
+==========================================
+Starting Experiment for P=8
+Node Allocation: 1 nodes
+==========================================
+Iteration 1 of 5...
+  [P=8][M=262144] Running...
+9987204096.000000 14.163601 0.070004
+  [P=8][M=1048576] Running...
+9987204096.000000 14.163601 0.292672
+Iteration 2 of 5...
+  [P=8][M=262144] Running...
+9987204096.000000 14.163601 0.068078
+  [P=8][M=1048576] Running...
+9987204096.000000 14.163601 0.269987
+Iteration 3 of 5...
+  [P=8][M=262144] Running...
+9987204096.000000 14.163601 0.059707
+  [P=8][M=1048576] Running...
+9987204096.000000 14.163601 0.270093
+Iteration 4 of 5...
+  [P=8][M=262144] Running...
+9987204096.000000 14.163601 0.059430
+  [P=8][M=1048576] Running...
+9987204096.000000 14.163601 0.269832
+Iteration 5 of 5...
+  [P=8][M=262144] Running...
+9987204096.000000 14.163601 0.059151
+  [P=8][M=1048576] Running...
+9987204096.000000 14.163601 0.273080
+Experiment P=8 Complete.
