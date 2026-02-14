@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
      double local_max_D1 = -DBL_MAX;
      double local_max_D2 = -DBL_MAX;
 
-     if (i_am_sender_D1)
+     if (iAmSender(rank, D1, P))
      {
           for (int i = 0; i < M; i++)
           {
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
           }
      }
 
-     if (i_am_sender_D2)
+     if (iAmSender(rank, D2, P))
      {
           for (int i = 0; i < M; i++)
           {
