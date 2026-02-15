@@ -2,10 +2,8 @@
 
 ## Overview
 
-This repository contains the implementation for **Assignment I** of
-CS633.\
-The project is designed to be executed on an HPC cluster using **MPI
-(Message Passing Interface)** for parallel processing.
+This repository contains the implementation for **Assignment I** of CS633.\
+The project is designed to be executed on an HPC cluster using **MPI (Message Passing Interface)** for parallel processing.
 
 Workflow
 
@@ -24,8 +22,7 @@ Before proceeding, ensure:
 
 -   You have SSH access to the cluster.
 -   MPI-compatible modules are available.
--   A directory named `bekar_chole_wale` exists in your **login home
-    directory**.
+-   A directory named `bekar_chole_wale` exists in your **login home directory**.
 
 ------------------------------------------------------------------------
 
