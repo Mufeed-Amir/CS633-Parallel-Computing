@@ -251,10 +251,11 @@ int main(int argc, char *argv[])
       * Analysis & Reduction
       * ========================================================================= */
 
-     /* 1. Calculate Local Maxima */
+     /* 1. Calculate Local Maxima initialized to lowest possible double size */
      double local_max_D1 = -DBL_MAX;
      double local_max_D2 = -DBL_MAX;
 
+     // Only the ranks that are senders in the last iteration will have valid data to compute local maxima from the received results.
      if (iAmSender(rank, D1, P))
      {
           for (int i = 0; i < M; i++)
