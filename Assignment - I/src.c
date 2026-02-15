@@ -6,9 +6,6 @@
  * - Uses blocking MPI_Send/MPI_Recv with an Odd-Even (Red-Black) ordering
  * strategy to prevent deadlock and serialization.
  * - Implements a custom O(log P) bitwise tree reduction for global maximums.
- *
- * Usage:
- * mpirun -np <P> ./program <M> <D1> <D2> <T> <seed>
  */
 
 #include <stdio.h>
@@ -41,69 +38,59 @@ static double *allocate_buffer(size_t size)
      return ptr;
 }
 
-static inline int computeTarget(const int rank, const int d){
-	return rank + d;
-}
+static inline int computeTarget(const int rank, const int d) { return rank + d; }
+static inline int computeSource(const int rank, const int d) { return rank - d; }
+static inline int iAmSender(const int rank, const int d, const int P) { return computeTarget(rank, d) < P; }
+static inline int iAmReceiver(const int rank, const int d, const int P) { return computeSource(rank, d) >= 0; }
 
-static inline int computeSource(const int rank, const int d){
-	return rank - d;
-}
-
-static inline int iAmSender(const int rank, const int d, const int P){
-	return computeTarget(rank, d) < P;
-}
-
-static inline int iAmReceiver(const int rank, const int d, const int P){
-	return computeSource(rank, d) >= 0;
-}
-
-void doCommunication(const int rank, const int d, const int P, const int M, double* recv_buf, double* data_to_send, int tag, int is_forward){
+void doCommunication(const int rank, const int d, const int P, const int M, double *recv_buf, double *data_to_send, int tag, int is_forward)
+{
      int i_am_receiver = iAmReceiver(rank, d, P);
      int i_am_sender = iAmSender(rank, d, P);
      int target = computeTarget(rank, d);
      int source = computeSource(rank, d);
-     
+
      if (i_am_receiver && !i_am_sender)
      {
           // Tail
-          if(is_forward){
+          if (is_forward) 
                MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-          else{
+          else 
                MPI_Send(data_to_send, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD);
-          }
      }
      else if (i_am_sender && !i_am_receiver)
      {
           // Head
-          if(is_forward){
+          if (is_forward) 
                MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
-          }
-          else{
+          else 
                MPI_Recv(recv_buf, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
      }
      else if (i_am_sender && i_am_receiver)
      {
           // Middle: Parity Check
           if ((rank / d) % 2 != 0)
           { // Odd parity block
-               if(is_forward){
+               if (is_forward)
+               {
                     MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
                }
-               else{
+               else
+               {
                     MPI_Send(data_to_send, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD);
                     MPI_Recv(recv_buf, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                }
           }
           else
           { // Even parity block
-               if(is_forward){
+               if (is_forward)
+               {
                     MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
                     MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                }
-               else{
+               else
+               {
                     MPI_Recv(recv_buf, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Send(data_to_send, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD);
                }
@@ -123,10 +110,8 @@ int main(int argc, char *argv[])
      /* --- Input Validation --- */
      if (argc != 6)
      {
-          if (rank == 0)
-          {
+          if (rank == 0) 
                fprintf(stderr, "Usage: %s <M> <D1> <D2> <T> <seed>\n", argv[0]);
-          }
           MPI_Finalize();
           exit(EXIT_FAILURE);
      }
@@ -160,7 +145,6 @@ int main(int argc, char *argv[])
      }
 
      double start_time = MPI_Wtime();
-
      /* =========================================================================
       * Main Simulation Loop
       * ========================================================================= */
@@ -182,18 +166,14 @@ int main(int argc, char *argv[])
            */
           if (iAmReceiver(rank, D1, P))
           {
-               for (int i = 0; i < M; i++)
-               {
+               for (int i = 0; i < M; i++) 
                     recv_buf_D1[i] *= recv_buf_D1[i];
-               }
           }
 
           if (iAmReceiver(rank, D2, P))
           {
                for (int i = 0; i < M; i++)
-               {
                     recv_buf_D2[i] = (recv_buf_D2[i] > 0) ? log(recv_buf_D2[i]) : 0;
-               }
           }
 
           /* * PHASE 3: Backward Communication (Results)
@@ -211,17 +191,13 @@ int main(int argc, char *argv[])
           if (iAmSender(rank, D1, P))
           {
                for (int i = 0; i < M; i++)
-               {
                     data_to_send_D1[i] = (double)((unsigned long long)data_recvd_from_D1[i] % 100000);
-               }
           }
 
           if (iAmSender(rank, D2, P))
           {
                for (int i = 0; i < M; i++)
-               {
                     data_to_send_D2[i] = data_recvd_from_D2[i] * 100000.0;
-               }
           }
      } /* End of Time Loop */
 
@@ -255,14 +231,12 @@ int main(int argc, char *argv[])
       * Performs a bitwise butterfly/tree reduction.
       * Complexity: O(log P)
       */
-     double global_max_D1 = local_max_D1;
-     double global_max_D2 = local_max_D2;
+     double global_max_D1 = local_max_D1, global_max_D2 = local_max_D2;
 
      int step = 1;
      while (step < P)
      {
           int partner = rank ^ step; // XOR finds the neighbor in the current tree level
-
           if (partner < P)
           {
                if (rank < partner)
@@ -286,19 +260,15 @@ int main(int argc, char *argv[])
           step <<= 1; // Move to next level of tree
      }
 
-     /* 3. Time Measurement */
-     double end_time = MPI_Wtime();
+     /* 3. Time Measurement & max_time*/
+     double end_time = MPI_Wtime(), max_time;
      double local_time = end_time - start_time;
-     double max_time;
-
      MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
      /* --- Final Output --- */
      if (rank == 0)
-     {
           printf("%lf %lf %lf\n", global_max_D1, global_max_D2, max_time);
-     }
-
+     
      /* --- Cleanup --- */
      free(data_to_send_D1);
      free(data_to_send_D2);
