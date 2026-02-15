@@ -38,21 +38,64 @@ static double *allocate_buffer(size_t size)
      return ptr;
 }
 
+/*
+These are a set of hempler functions to compute the source and target ranks for communication 
+based on the current rank, the distance (d), and the total number of processors (P). 
+They also determine whether the current rank is a sender or receiver in the communication step. 
+This abstraction helps to keep the main communication logic clean and focused on the 
+actual data movement rather than the details of rank calculations.
+*/
 static inline int computeTarget(const int rank, const int d) { return rank + d; }
 static inline int computeSource(const int rank, const int d) { return rank - d; }
+
+/*
+These functions determine the role of the current rank in the communication step. 
+A rank is considered a sender if its computed target is within the valid range of ranks (less than P), 
+and it is considered a receiver if its computed source is within the valid range (greater than or equal to 0). 
+This logic helps to identify which ranks will be sending data and which will be receiving data during the communication phases.
+*/
 static inline int iAmSender(const int rank, const int d, const int P) { return computeTarget(rank, d) < P; }
 static inline int iAmReceiver(const int rank, const int d, const int P) { return computeSource(rank, d) >= 0; }
 
+/**
+ * @brief Handles point-to-point MPI communication for a specific algorithmic step.
+ *
+ * This function orchestrates data movement between the current rank and its
+ * computed source/target neighbors. It supports both forward and reverse
+ * communication passes and includes logic to prevent deadlocks during
+ * bidirectional exchange.
+ *
+ * @param rank          The rank of the calling MPI process.
+ * @param d             The current stride or distance (often used in recursive doubling/halving).
+ * @param P             Total number of processors.
+ * @param M             Size of the message (number of doubles).
+ * @param recv_buf      Buffer to store received data.
+ * @param data_to_send  Buffer containing data to transmit.
+ * @param tag           MPI tag to distinguish this specific communication context.
+ * @param is_forward    Boolean flag: 
+ * 1 (True) for forward pass (Head -> Tail),
+ * 0 (False) for reverse pass (Tail -> Head).
+ */
 void doCommunication(const int rank, const int d, const int P, const int M, double *recv_buf, double *data_to_send, int tag, int is_forward)
 {
+     /*Role Identification:
+      * - i_am_receiver: True if this rank is a receiver in the current communication step.
+      * - i_am_sender: True if this rank is a sender in the current communication step.
+     */
      int i_am_receiver = iAmReceiver(rank, d, P);
      int i_am_sender = iAmSender(rank, d, P);
+     
+     /* Communication Partners:
+      * - target: The rank to which this process will send data in Phase 1 and will receive data in Phase 2.
+      * - source: The rank from which this process will receive data in Phase 1 and will send data in Phase 2.
+     */
      int target = computeTarget(rank, d);
      int source = computeSource(rank, d);
 
+     // This is the core communication logic that handles all cases (Sender, Receiver, Middle) with proper ordering to avoid deadlock.
      if (i_am_receiver && !i_am_sender)
      {
-          // Tail
+          // The last block of proceeses (Receivers only) - They only receive in the forward pass and send in the reverse pass.
           if (is_forward) 
                MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
           else 
@@ -60,7 +103,7 @@ void doCommunication(const int rank, const int d, const int P, const int M, doub
      }
      else if (i_am_sender && !i_am_receiver)
      {
-          // Head
+          // The first block of processes (Senders only) - They only send in the forward pass and receive in the reverse pass.
           if (is_forward) 
                MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
           else 
@@ -68,9 +111,11 @@ void doCommunication(const int rank, const int d, const int P, const int M, doub
      }
      else if (i_am_sender && i_am_receiver)
      {
-          // Middle: Parity Check
+          // Middle block of processes (Both Sender and Receiver) - They must perform both send and receive operations.
+          // The odd vs even parity of the block determines the order of send/recv to prevent deadlock and this happens in 2 rounds
           if ((rank / d) % 2 != 0)
-          { // Odd parity block
+          { 
+               // Odd parity block - They perform send/recv in one order during the forward pass and reverse it during the backward pass.
                if (is_forward)
                {
                     MPI_Recv(recv_buf, M, MPI_DOUBLE, source, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -83,7 +128,8 @@ void doCommunication(const int rank, const int d, const int P, const int M, doub
                }
           }
           else
-          { // Even parity block
+          {
+               // Even parity block - They perform send/recv in the opposite order of the odd block to ensure that at least one side is always sending while the other is receiving, thus preventing deadlock.
                if (is_forward)
                {
                     MPI_Send(data_to_send, M, MPI_DOUBLE, target, tag, MPI_COMM_WORLD);
@@ -269,7 +315,7 @@ int main(int argc, char *argv[])
      if (rank == 0)
           printf("%lf %lf %lf\n", global_max_D1, global_max_D2, max_time);
      
-     /* --- Cleanup --- */
+     /* --- Cleanup to free allocated memory --- */
      free(data_to_send_D1);
      free(data_to_send_D2);
      free(recv_buf_D1);
