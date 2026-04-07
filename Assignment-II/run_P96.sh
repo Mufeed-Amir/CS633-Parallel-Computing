@@ -1,17 +1,17 @@
 #!/bin/bash
 
-#SBATCH --job-name=bench_P32
-#SBATCH -N 1                       # Request 1 Node (32/32 = 1)
-#SBATCH --ntasks-per-node=32       # ppn = 32
-#SBATCH --output=results_P32_%j.out
-#SBATCH --error=results_P32_%j.err
+#SBATCH --job-name=bench_P96
+#SBATCH -N 2                       # Request 2 Nodes (96/48 = 2)
+#SBATCH --ntasks-per-node=48       # ppn = 48
+#SBATCH --output=results_P96_%j.out
+#SBATCH --error=results_P96_%j.err
 #SBATCH --partition=cpu
-#SBATCH --time=00:15:00
+#SBATCH --time=00:20:00
 
 # --- Configuration ---
-P=32
-PPN=32
-PX=4; PY=4; PZ=2
+P=96
+PPN=48
+PX=6; PY=4; PZ=4
 D=7; T=5; SEED=1000; F=2; ISO=500
 N1=120; N2=240
 
