@@ -32,7 +32,7 @@ Before proceeding, ensure:
     │
     ├── src_main.c
     ├── run_P32.sh
-    ├── run_P32.sh
+    ├── run_P48.sh
     ├── run_P64.sh
     ├── run_P96.sh
     └── src_exec (generated after compilation)
