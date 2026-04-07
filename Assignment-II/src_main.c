@@ -9,8 +9,6 @@
 // Optimal L1 Cache Block Size for double precision floating point operations
 #define CACHE_BLOCK_SIZE 16
 
-// --- ENTERPRISE HELPER FUNCTIONS ---
-
 // 1. Manually resolve 3D Cartesian topology neighbors based on process ID
 void find_process_neighbors(int process_id, int px, int py, int pz,
                               int *neighbor_left, int *neighbor_right, int *neighbor_bottom,
@@ -238,7 +236,7 @@ int main(int argc, char *argv[])
           return 1;
      }
 
-     // Parse Configuration using the exact assignment variables
+     // input parsing
      int d = atoi(argv[1]);
      int ppn = atoi(argv[2]);
      int px = atoi(argv[3]);
@@ -284,7 +282,7 @@ int main(int argc, char *argv[])
           write_buffer[i] = (double *)calloc(total_allocation_size, sizeof(double));
      }
 
-     // Mathematical Initialization (Exact Assignment Mandate)
+     // Mathematical Initialization
      srand(seed);
      int arrSize = nx * ny * nz;
      for (int i = 0; i < F; i++)
