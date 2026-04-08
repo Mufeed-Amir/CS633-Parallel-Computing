@@ -31,11 +31,11 @@ do
 
     # Configuration 1: nx = ny = nz = 120
     echo "  [P=$P][Grid=$N1] Running..."
-    mpirun -np $P ./stencil $D $PPN $PX $PY $PZ $N1 $N1 $N1 $T $SEED $F $ISO
+    mpirun -np $P ./src_exec $D $PPN $PX $PY $PZ $N1 $N1 $N1 $T $SEED $F $ISO
 
     # Configuration 2: nx = ny = nz = 240
     echo "  [P=$P][Grid=$N2] Running..."
-    mpirun -np $P ./stencil $D $PPN $PX $PY $PZ $N2 $N2 $N2 $T $SEED $F $ISO
+    mpirun -np $P ./src_exec $D $PPN $PX $PY $PZ $N2 $N2 $N2 $T $SEED $F $ISO
 done
 
 echo "Experiment P=$P Complete."
