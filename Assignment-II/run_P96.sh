@@ -6,7 +6,7 @@
 #SBATCH --output=results_P96_%j.out
 #SBATCH --error=results_P96_%j.err
 #SBATCH --partition=cpu
-#SBATCH --time=00:20:00
+#SBATCH --time=00:10:00
 
 # --- Configuration ---
 P=96
