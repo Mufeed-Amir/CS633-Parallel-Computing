@@ -6,7 +6,7 @@
 #SBATCH --output=results_P32_%j.out
 #SBATCH --error=results_P32_%j.err
 #SBATCH --partition=cpu
-#SBATCH --time=00:15:00
+#SBATCH --time=00:10:00
 
 # --- Configuration ---
 P=32
