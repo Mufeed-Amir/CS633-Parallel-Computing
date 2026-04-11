@@ -30,7 +30,7 @@ Before proceeding, ensure:
 
     bekar_chole_wale/
     │
-    ├── src_main.c
+    ├── src.c
     ├── run_P32.sh
     ├── run_P48.sh
     ├── run_P64.sh
@@ -44,7 +44,7 @@ Before proceeding, ensure:
 Run from your local machine:
 
 ``` bash
-scp -P 4422 src_main.c run_P32.sh run_P48.sh run_P64.sh run_P96.sh iitk_21@paramrudra.cdacdelhi.in:~/bekar_chole_wale/
+scp -P 4422 src.c run_P32.sh run_P48.sh run_P64.sh run_P96.sh iitk_21@paramrudra.cdacdelhi.in:~/bekar_chole_wale/
 ```
 
 Verify the transfer:
@@ -71,8 +71,8 @@ module load compiler/openmpi/4.1.5
 ## 3. Compile the Application
 
 ``` bash
-mpicc -O3 -ffast-math -march=native src_main.c -o src_exec -lm
-mpicc src_main.c -o src_exec -lm -O3
+mpicc -O3 -ffast-math -march=native src.c -o src_exec -lm
+mpicc src.c -o src_exec -lm -O3
 ```
 > First one is recommended for the best output
 
