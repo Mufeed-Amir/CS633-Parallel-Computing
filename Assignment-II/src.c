@@ -169,7 +169,9 @@ long long compute_subdomain_region(
     double *read_buffer, double *write_buffer,
     int z_start, int z_end, int y_start, int y_end, int x_start, int x_end,
     int nx, int ny, int nz,
-    int halo_depth, int d, double isovalue)
+    int halo_depth, int d, double isovalue,
+    int neighbor_left, int neighbor_right, int neighbor_bottom,
+    int neighbor_top, int neighbor_back, int neighbor_front)
 {
      long long regional_iso_count = 0;
 
@@ -220,18 +222,19 @@ long long compute_subdomain_region(
 
                                    // --- B. Variable D-Point Stencil ---
                                    double accumulation = read_buffer[flat_idx];
+                                   int m = 1; // actual neighbour count for divide-by-m at global boundaries
 
                                    for (int step = 1; step <= halo_depth; step++)
                                    {
-                                        accumulation += read_buffer[IDX(z, y, x - step, nx, ny, halo_depth)];
-                                        accumulation += read_buffer[IDX(z, y, x + step, nx, ny, halo_depth)];
-                                        accumulation += read_buffer[IDX(z, y - step, x, nx, ny, halo_depth)];
-                                        accumulation += read_buffer[IDX(z, y + step, x, nx, ny, halo_depth)];
-                                        accumulation += read_buffer[IDX(z - step, y, x, nx, ny, halo_depth)];
-                                        accumulation += read_buffer[IDX(z + step, y, x, nx, ny, halo_depth)];
+                                        if (x - step >= halo_depth        || neighbor_left   != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y, x - step, nx, ny, halo_depth)]; m++; }
+                                        if (x + step <= halo_depth+nx - 1 || neighbor_right  != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y, x + step, nx, ny, halo_depth)]; m++; }
+                                        if (y - step >= halo_depth        || neighbor_bottom != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y - step, x, nx, ny, halo_depth)]; m++; }
+                                        if (y + step <= halo_depth+ny - 1 || neighbor_top    != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y + step, x, nx, ny, halo_depth)]; m++; }
+                                        if (z - step >= halo_depth        || neighbor_back   != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z - step, y, x, nx, ny, halo_depth)]; m++; }
+                                        if (z + step <= halo_depth+nz - 1 || neighbor_front  != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z + step, y, x, nx, ny, halo_depth)]; m++; }
                                    }
 
-                                   write_buffer[flat_idx] = accumulation / (double)d;
+                                   write_buffer[flat_idx] = accumulation / (double)m;
                               }
                          }
                     }
@@ -393,7 +396,7 @@ int main(int argc, char *argv[])
 
                // 2. COMPUTE INNER CORE (Overlapping calculation while network transmits data)
                long long field_count = 0;
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_L, I_Rx, nx, ny, nz, halo_depth, d, isovalue);
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_L, I_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
 
                // 3. WAIT FOR NETWORK COMPLETION
                MPI_Waitall(active_requests, network_requests, MPI_STATUSES_IGNORE);
@@ -402,12 +405,12 @@ int main(int argc, char *argv[])
                integrate_incoming_halos(read_buffer[i], nx, ny, nz, halo_depth, recv_l, recv_r, recv_b, recv_t, recv_bk, recv_fr, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
 
                // 5. COMPUTE BOUNDARY SHELLS (Using exact non-overlapping geometrical regions)
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], D_L, I_L - 1, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue);   // Z-Bot
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_Rz + 1, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue); // Z-Top
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, D_L, I_L - 1, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue);   // Y-Bot
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_Ry + 1, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue); // Y-Top
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, D_L, I_L - 1, nx, ny, nz, halo_depth, d, isovalue);   // X-Left
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_Rx + 1, D_Rx, nx, ny, nz, halo_depth, d, isovalue); // X-Right
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], D_L, I_L - 1, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // Z-Bot
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_Rz + 1, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // Z-Top
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, D_L, I_L - 1, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // Y-Bot
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_Ry + 1, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // Y-Top
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, D_L, I_L - 1, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // X-Left
+               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_Rx + 1, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // X-Right
 
                local_results[t * F + i] = field_count;
 
