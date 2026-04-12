@@ -6,7 +6,7 @@
 /* Macro mapping 3D coordinates (z,y,x) to a 1D flat array considering the halo cell depth */
 #define IDX(z, y, x, dim_x, dim_y, halo) ((x) + (y) * ((dim_x) + 2 * (halo)) + (z) * ((dim_x) + 2 * (halo)) * ((dim_y) + 2 * (halo)))
 
-/* Optimal L1 Cache Block Size for double precision floating point operations this is done to optimize time */
+/* Optimal L1 and L2 Cache Block Size for double precision floating point operations this is done to optimize time */
 #define CACHE_BLOCK_SIZE 16
 
 /* Manually resolve 3D Cartesian topology neighbors based on rank of the process 
