@@ -243,8 +243,13 @@ void compute_subdomain_region(
 }
 
 /* Count isovalue crossings in a region of a fully-computed buffer using the same
- * cache-blocking structure. Called on write_buffer after all stencil passes are
- * done so the count reflects post-stencil values (Halo -> stencil -> count).
+ * cache-blocking structure. Called on write_buffer after the halo exchange on
+ * write_buffer, so ghost cells hold neighbour values enabling double counting at
+ * process boundaries (Halo -> stencil -> count).
+ * For each grid point we check 3 forward edges (+x, +y, +z). An edge crossing
+ * occurs when one endpoint is strictly below the isovalue and the other is at or
+ * above it, i.e. (v - isovalue) * (neighbour - isovalue) < 0.
+ * Checking only forward directions avoids double counting edges within a process.
 */
 long long count_isovalues_region(
     double *data,
@@ -271,28 +276,21 @@ long long count_isovalues_region(
                          {
                               for (int x = block_x; x <= limit_x; x++)
                               {
-                                   // --- A. Marching Cubes Surface Detection ---
-                                   double vertex[8];
-                                   vertex[0] = data[IDX(z, y, x, nx, ny, halo_depth)];
-                                   vertex[1] = data[IDX(z, y, x + 1, nx, ny, halo_depth)];
-                                   vertex[2] = data[IDX(z, y + 1, x, nx, ny, halo_depth)];
-                                   vertex[3] = data[IDX(z, y + 1, x + 1, nx, ny, halo_depth)];
-                                   vertex[4] = data[IDX(z + 1, y, x, nx, ny, halo_depth)];
-                                   vertex[5] = data[IDX(z + 1, y, x + 1, nx, ny, halo_depth)];
-                                   vertex[6] = data[IDX(z + 1, y + 1, x, nx, ny, halo_depth)];
-                                   vertex[7] = data[IDX(z + 1, y + 1, x + 1, nx, ny, halo_depth)];
+                                   double v = data[IDX(z, y, x, nx, ny, halo_depth)];
+                                   double diff = v - isovalue;
 
-                                   int vertices_below_threshold = 0;
-                                   for (int k = 0; k < 8; k++)
-                                   {
-                                        if (vertex[k] < isovalue)
-                                             vertices_below_threshold++;
-                                   }
-
-                                   if (vertices_below_threshold > 0 && vertices_below_threshold < 8)
-                                   {
+                                   /* +x edge: at x = x_end the ghost cell holds the neighbour's
+                                    * value (filled by the write_buffer halo exchange in step 6) */
+                                   if (diff * (data[IDX(z, y, x + 1, nx, ny, halo_depth)] - isovalue) < 0)
                                         regional_iso_count++;
-                                   }
+
+                                   /* +y edge */
+                                   if (diff * (data[IDX(z, y + 1, x, nx, ny, halo_depth)] - isovalue) < 0)
+                                        regional_iso_count++;
+
+                                   /* +z edge */
+                                   if (diff * (data[IDX(z + 1, y, x, nx, ny, halo_depth)] - isovalue) < 0)
+                                        regional_iso_count++;
                               }
                          }
                     }
