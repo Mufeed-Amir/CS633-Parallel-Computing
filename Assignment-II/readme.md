@@ -44,7 +44,7 @@ Before proceeding, ensure:
 Run from your local machine:
 
 ``` bash
-scp -P 4422 src.c run_P32.sh run_P48.sh run_P64.sh run_P96.sh iitk_21@paramrudra.cdacdelhi.in:~/bekar_chole_wale/
+scp -P 4422 src.c run_P32.sh run_P48.sh run_P64.sh run_P96.sh iitk_21@paramrudra.cdacdelhi.in:~/bekar_chole_wale/Assignment-2/
 ```
 
 Verify the transfer:
@@ -136,7 +136,7 @@ cat results_P<process>_<jobID>.err
 ## 6. Retrieve Results to Local Machine
 
 ``` bash
-scp -P 4422 iitk_21@paramrudra.cdacdelhi.in:"~/bekar_chole_wale/*.out" ./results/
+scp -P 4422 iitk_21@paramrudra.cdacdelhi.in:"~/bekar_chole_wale/Assignment-2/results*" ./results/
 ```
 
 ------------------------------------------------------------------------
