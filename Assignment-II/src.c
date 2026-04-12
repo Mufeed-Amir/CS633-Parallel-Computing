@@ -3,30 +3,42 @@
 #include <stdlib.h>
 #include <math.h>
 
-// Macro mapping 3D coordinates (z,y,x) to a 1D flat array considering the halo (ghost) cell depth
+/* Macro mapping 3D coordinates (z,y,x) to a 1D flat array considering the halo cell depth */
 #define IDX(z, y, x, dim_x, dim_y, halo) ((x) + (y) * ((dim_x) + 2 * (halo)) + (z) * ((dim_x) + 2 * (halo)) * ((dim_y) + 2 * (halo)))
 
-// Optimal L1 Cache Block Size for double precision floating point operations
+/* Optimal L1 Cache Block Size for double precision floating point operations this is done to optimize time */
 #define CACHE_BLOCK_SIZE 64
 
-// 1. Manually resolve 3D Cartesian topology neighbors based on process ID
-void find_process_neighbors(int process_id, int px, int py, int pz,
+/* Manually resolve 3D Cartesian topology neighbors based on rank of the process 
+ * Firstly we translate the rank to the (x, y, z) coordinates of the 3D domain.
+ * Then depending on these coordinates we find out the cooresponding ranks of
+ * the neighbours. These are passed using output pointers in the function definition
+*/
+void find_process_neighbors(int myrank, int px, int py, int pz,
                               int *neighbor_left, int *neighbor_right, int *neighbor_bottom,
                               int *neighbor_top, int *neighbor_back, int *neighbor_front)
 {
-     int coord_x = process_id % px;
-     int coord_y = (process_id / px) % py;
-     int coord_z = process_id / (px * py);
+     int coord_x = myrank % px;
+     int coord_y = (myrank / px) % py;
+     int coord_z = myrank / (px * py);
 
-     *neighbor_left = (coord_x > 0) ? process_id - 1 : MPI_PROC_NULL;
-     *neighbor_right = (coord_x < px - 1) ? process_id + 1 : MPI_PROC_NULL;
-     *neighbor_bottom = (coord_y > 0) ? process_id - px : MPI_PROC_NULL;
-     *neighbor_top = (coord_y < py - 1) ? process_id + px : MPI_PROC_NULL;
-     *neighbor_back = (coord_z > 0) ? process_id - (px * py) : MPI_PROC_NULL;
-     *neighbor_front = (coord_z < pz - 1) ? process_id + (px * py) : MPI_PROC_NULL;
+	 /* 
+	  * If any process is at a domain boundary return MPI_PROC_NULL
+	  * MPI_PROC_NULL means don't do any comm with the corresponding
+	  * neighbour
+	 */
+     *neighbor_left = (coord_x > 0) ? myrank - 1 : MPI_PROC_NULL;
+     *neighbor_right = (coord_x < px - 1) ? myrank + 1 : MPI_PROC_NULL;
+     *neighbor_bottom = (coord_y > 0) ? myrank - px : MPI_PROC_NULL;
+     *neighbor_top = (coord_y < py - 1) ? myrank + px : MPI_PROC_NULL;
+     *neighbor_back = (coord_z > 0) ? myrank - (px * py) : MPI_PROC_NULL;
+     *neighbor_front = (coord_z < pz - 1) ? myrank + (px * py) : MPI_PROC_NULL;
 }
 
-// 2. Stage outgoing boundary data into contiguous memory buffers
+/* Stage outgoing boundary data into contiguous memory buffers
+ * Here we fill the outgoing buffers with the required data present in
+ * data buffer and we use the IDX macro to get the required index
+*/
 void stage_outgoing_halos(double *data_buffer, int nx, int ny, int nz, int halo_depth,
                           double *send_left, double *send_right, double *send_bottom,
                           double *send_top, double *send_back, double *send_front)
@@ -74,7 +86,12 @@ void stage_outgoing_halos(double *data_buffer, int nx, int ny, int nz, int halo_
      }
 }
 
-// 3. Integrate incoming contiguous network buffers into local ghost cells
+/* Integrate incoming contiguous network buffers into local ghost cells
+ * There exist for each rank some "ghost cells" that store the incoming data from the halo
+ * exchange and this data is then integrated with the present data in this function,
+ * There are check that the neighbours are not MPI_PROC_NULL and then the recv buffers are
+ * integrated into the data_buffers
+*/
 void integrate_incoming_halos(double *data_buffer, int nx, int ny, int nz, int halo_depth,
                               double *recv_left, double *recv_right, double *recv_bottom,
                               double *recv_top, double *recv_back, double *recv_front,
@@ -142,7 +159,12 @@ void integrate_incoming_halos(double *data_buffer, int nx, int ny, int nz, int h
      }
 }
 
-// 4. Compute Subdomain with CACHE BLOCKING (Tiled Loops) for maximum CPU efficiency
+/* Compute Subdomain with CACHE BLOCKING (Tiled Loops) for maximum CPU efficiency.
+ * Here we check for each subdomain the local isocount and then we also accumulate
+ * all the values in the read_buiffers. 
+ * Since this is one of the most computation intensive works we are doing in this code
+ * we have optimized this using cache efficiency to go in jumps of the cache size (64)
+*/
 long long compute_subdomain_region(
     double *read_buffer, double *write_buffer,
     int z_start, int z_end, int y_start, int y_end, int x_start, int x_end,
@@ -223,52 +245,52 @@ long long compute_subdomain_region(
 
 int main(int argc, char *argv[])
 {
-     int process_id, num_processes;
+     int myrank, num_processes;
      MPI_Init(&argc, &argv);
-     MPI_Comm_rank(MPI_COMM_WORLD, &process_id);
+     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
      MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
 
      if (argc != 13)
      {
-          if (process_id == 0)
+          if (myrank == 0)
                printf("Usage: %s d ppn px py pz nx ny nz T seed F isovalue\n", argv[0]);
           MPI_Finalize();
           return 1;
      }
 
      // input parsing
-     int d = atoi(argv[1]);
-     int ppn = atoi(argv[2]);
-     int px = atoi(argv[3]);
-     int py = atoi(argv[4]);
-     int pz = atoi(argv[5]);
-     int nx = atoi(argv[6]);
-     int ny = atoi(argv[7]);
-     int nz = atoi(argv[8]);
-     int T = atoi(argv[9]);
-     int seed = atoi(argv[10]);
-     int F = atoi(argv[11]);
-     double isovalue = atof(argv[12]);
+     int d = atoi(argv[1]); // d point stencil
+     int ppn = atoi(argv[2]); // process per node (not required in the code)
+     int px = atoi(argv[3]); // length of x axis process per rank
+     int py = atoi(argv[4]); // length of y axis process per rank
+     int pz = atoi(argv[5]); // length of z axis process per rank
+     int nx = atoi(argv[6]); // length of x axis process globally
+     int ny = atoi(argv[7]); // length of y axis process globally
+     int nz = atoi(argv[8]); // length of z axis process globally
+     int T = atoi(argv[9]); // Time steps
+     int seed = atoi(argv[10]); // random seed for initial values
+     int F = atoi(argv[11]); // number of fields
+     double isovalue = atof(argv[12]); // isovalue
 
      if ((d - 1) % 6 != 0)
      {
-          if (process_id == 0)
+          if (myrank == 0)
                printf("Error: Invalid stencil point configuration.\n");
           MPI_Finalize();
           return 1;
      }
-     int halo_depth = (d - 1) / 6;
+     int halo_depth = (d - 1) / 6; // Since halo can be divided into 6 parts UP DOWN FRONT BACK LEFT RIGHT
 
      if (num_processes != px * py * pz)
      {
-          if (process_id == 0)
+          if (myrank == 0)
                printf("Error: Process topology mismatch.\n");
           MPI_Finalize();
           return 1;
      }
 
      int neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front;
-     find_process_neighbors(process_id, px, py, pz, &neighbor_left, &neighbor_right,
+     find_process_neighbors(myrank, px, py, pz, &neighbor_left, &neighbor_right,
                               &neighbor_bottom, &neighbor_top, &neighbor_back, &neighbor_front);
 
      // Memory Allocation
@@ -293,8 +315,8 @@ int main(int argc, char *argv[])
                int y_in = (j / nx) % ny;
                int x_in = j % nx;
                int flat_idx = IDX(z_in + halo_depth, y_in + halo_depth, x_in + halo_depth, nx, ny, halo_depth);
-               // process_id represents myrank in the formula
-               read_buffer[i][flat_idx] = (double)rand() * (process_id + 1) / (110426.0 + i + j);
+               
+               read_buffer[i][flat_idx] = (double)rand() * (myrank + 1) / (110426.0 + i + j);
           }
      }
 
@@ -311,7 +333,7 @@ int main(int argc, char *argv[])
      double *send_fr = malloc(halo_vol_z * sizeof(double)), *recv_fr = malloc(halo_vol_z * sizeof(double));
 
      long long *local_results = (long long *)malloc(T * F * sizeof(long long));
-     long long *global_results = (process_id == 0) ? (long long *)malloc(T * F * sizeof(long long)) : NULL;
+     long long *global_results = (myrank == 0) ? (long long *)malloc(T * F * sizeof(long long)) : NULL;
 
      // 7-Region Decomposition Boundaries (Array Coordinates)
      int D_L = halo_depth;
@@ -399,8 +421,9 @@ int main(int argc, char *argv[])
      MPI_Reduce(local_results, global_results, T * F, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
      MPI_Barrier(MPI_COMM_WORLD);
      double clock_end = MPI_Wtime();
-
-     if (process_id == 0)
+	 
+	 // Print all the values required
+     if (myrank == 0)
      {
           for (int t = 0; t < T; t++)
           {
@@ -412,7 +435,8 @@ int main(int argc, char *argv[])
           }
           printf("%f\n", clock_end - clock_start);
      }
-
+	 
+	 // Free all the allocated memory
      for (int i = 0; i < F; i++)
      {
           free(read_buffer[i]);
@@ -434,9 +458,9 @@ int main(int argc, char *argv[])
      free(recv_fr);
      free(local_results);
 
-     if (process_id == 0)
+     if (myrank == 0)
      {
-          free(global_results);
+          free(global_results); // Special buffer only present in case of rank 0
      }
           
      MPI_Finalize();
