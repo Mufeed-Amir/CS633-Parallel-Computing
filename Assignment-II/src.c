@@ -163,7 +163,8 @@ void integrate_incoming_halos(double *data_buffer, int nx, int ny, int nz, int h
  * Here we check for each subdomain the local isocount and then we also accumulate
  * all the values in the read_buiffers. 
  * Since this is one of the most computation intensive works we are doing in this code
- * we have optimized this using cache efficiency to go in jumps of the cache size (64)
+ * we have optimized this using cache efficiency to compute such that the data fits 
+ * inside the cache
 */
 void compute_subdomain_region(
     double *read_buffer, double *write_buffer,
@@ -243,9 +244,8 @@ void compute_subdomain_region(
 }
 
 /* Count isovalue crossings in a region of a fully-computed buffer using the same
- * cache-blocking structure. Called on write_buffer after the halo exchange on
- * write_buffer, so ghost cells hold neighbour values enabling double counting at
- * process boundaries (Halo -> stencil -> count).
+ * cache optimized way. This is computed on write_buffer after the halo exchange is done
+ * so ghost cells hold neighbour values. This causes double counting at the boundaries.
  * For each grid point we check 3 forward edges (+x, +y, +z). An edge crossing
  * occurs when one endpoint is strictly below the isovalue and the other is at or
  * above it, i.e. (v - isovalue) * (neighbour - isovalue) < 0.
@@ -467,10 +467,9 @@ int main(int argc, char *argv[])
                compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, D_L, I_L - 1, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // X-Left
                compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_Rx + 1, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // X-Right
 
-               /* 6. HALO EXCHANGE ON write_buffer so boundary-spanning cells use real
-                *    neighbour values, enabling double counting at process boundaries.
-                *    (write_buffer ghost cells are never written by the stencil step,
-                *    so without this they would be 0, corrupting the boundary count.)
+               /* 6. HALO EXCHANGE on write_buffer so boundary-spanning cells use real
+                * neighbour values, without this the ghost cells were just using 
+                * 0 (default because of calloc), now they use the actuall boundary values
                 */
                MPI_Request count_requests[12];
                int count_active = 0;
@@ -508,9 +507,8 @@ int main(int argc, char *argv[])
                MPI_Waitall(count_active, count_requests, MPI_STATUSES_IGNORE);
                integrate_incoming_halos(write_buffer[i], nx, ny, nz, halo_depth, recv_l, recv_r, recv_b, recv_t, recv_bk, recv_fr, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
 
-               /* 7. COUNT ISOVALUES on post-stencil write_buffer (Halo -> stencil -> count)
-                *    Ghost cells are now filled, so boundary-spanning cells are double counted
-                *    (each neighbouring process counts the cell on its own side).
+               /* 7. COUNT ISOVALUES on post-stencil write_buffer
+                * Ghost cells are now filled, so boundary cells are double counted
                 */
                local_results[t * F + i] = count_isovalues_region(write_buffer[i], D_L, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, isovalue);
 
