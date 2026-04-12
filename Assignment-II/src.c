@@ -273,11 +273,11 @@ long long count_isovalues_region(
                               {
                                    // --- A. Marching Cubes Surface Detection ---
                                    double vertex[8];
-                                   vertex[0] = data[IDX(z, y, x,     nx, ny, halo_depth)];
+                                   vertex[0] = data[IDX(z, y, x, nx, ny, halo_depth)];
                                    vertex[1] = data[IDX(z, y, x + 1, nx, ny, halo_depth)];
                                    vertex[2] = data[IDX(z, y + 1, x, nx, ny, halo_depth)];
                                    vertex[3] = data[IDX(z, y + 1, x + 1, nx, ny, halo_depth)];
-                                   vertex[4] = data[IDX(z + 1, y, x,     nx, ny, halo_depth)];
+                                   vertex[4] = data[IDX(z + 1, y, x, nx, ny, halo_depth)];
                                    vertex[5] = data[IDX(z + 1, y, x + 1, nx, ny, halo_depth)];
                                    vertex[6] = data[IDX(z + 1, y + 1, x, nx, ny, halo_depth)];
                                    vertex[7] = data[IDX(z + 1, y + 1, x + 1, nx, ny, halo_depth)];
@@ -469,7 +469,51 @@ int main(int argc, char *argv[])
                compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, D_L, I_L - 1, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // X-Left
                compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_Rx + 1, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // X-Right
 
-               // 6. COUNT ISOVALUES on post-stencil write_buffer (Halo -> stencil -> count)
+               /* 6. HALO EXCHANGE ON write_buffer so boundary-spanning cells use real
+                *    neighbour values, enabling double counting at process boundaries.
+                *    (write_buffer ghost cells are never written by the stencil step,
+                *    so without this they would be 0, corrupting the boundary count.)
+                */
+               MPI_Request count_requests[12];
+               int count_active = 0;
+               stage_outgoing_halos(write_buffer[i], nx, ny, nz, halo_depth, send_l, send_r, send_b, send_t, send_bk, send_fr);
+               if (neighbor_left != MPI_PROC_NULL)
+               {
+                    MPI_Isend(send_l, halo_vol_x, MPI_DOUBLE, neighbor_left, 6, MPI_COMM_WORLD, &count_requests[count_active++]);
+                    MPI_Irecv(recv_l, halo_vol_x, MPI_DOUBLE, neighbor_left, 7, MPI_COMM_WORLD, &count_requests[count_active++]);
+               }
+               if (neighbor_right != MPI_PROC_NULL)
+               {
+                    MPI_Isend(send_r, halo_vol_x, MPI_DOUBLE, neighbor_right, 7, MPI_COMM_WORLD, &count_requests[count_active++]);
+                    MPI_Irecv(recv_r, halo_vol_x, MPI_DOUBLE, neighbor_right, 6, MPI_COMM_WORLD, &count_requests[count_active++]);
+               }
+               if (neighbor_bottom != MPI_PROC_NULL)
+               {
+                    MPI_Isend(send_b, halo_vol_y, MPI_DOUBLE, neighbor_bottom, 8, MPI_COMM_WORLD, &count_requests[count_active++]);
+                    MPI_Irecv(recv_b, halo_vol_y, MPI_DOUBLE, neighbor_bottom, 9, MPI_COMM_WORLD, &count_requests[count_active++]);
+               }
+               if (neighbor_top != MPI_PROC_NULL)
+               {
+                    MPI_Isend(send_t, halo_vol_y, MPI_DOUBLE, neighbor_top, 9, MPI_COMM_WORLD, &count_requests[count_active++]);
+                    MPI_Irecv(recv_t, halo_vol_y, MPI_DOUBLE, neighbor_top, 8, MPI_COMM_WORLD, &count_requests[count_active++]);
+               }
+               if (neighbor_back != MPI_PROC_NULL)
+               {
+                    MPI_Isend(send_bk, halo_vol_z, MPI_DOUBLE, neighbor_back, 10, MPI_COMM_WORLD, &count_requests[count_active++]);
+                    MPI_Irecv(recv_bk, halo_vol_z, MPI_DOUBLE, neighbor_back, 11, MPI_COMM_WORLD, &count_requests[count_active++]);
+               }
+               if (neighbor_front != MPI_PROC_NULL)
+               {
+                    MPI_Isend(send_fr, halo_vol_z, MPI_DOUBLE, neighbor_front, 11, MPI_COMM_WORLD, &count_requests[count_active++]);
+                    MPI_Irecv(recv_fr, halo_vol_z, MPI_DOUBLE, neighbor_front, 10, MPI_COMM_WORLD, &count_requests[count_active++]);
+               }
+               MPI_Waitall(count_active, count_requests, MPI_STATUSES_IGNORE);
+               integrate_incoming_halos(write_buffer[i], nx, ny, nz, halo_depth, recv_l, recv_r, recv_b, recv_t, recv_bk, recv_fr, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
+
+               /* 7. COUNT ISOVALUES on post-stencil write_buffer (Halo -> stencil -> count)
+                *    Ghost cells are now filled, so boundary-spanning cells are double counted
+                *    (each neighbouring process counts the cell on its own side).
+                */
                local_results[t * F + i] = count_isovalues_region(write_buffer[i], D_L, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, isovalue);
 
                // Pointer Swap
