@@ -226,12 +226,36 @@ long long compute_subdomain_region(
 
                                    for (int step = 1; step <= halo_depth; step++)
                                    {
-                                        if (x - step >= halo_depth        || neighbor_left   != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y, x - step, nx, ny, halo_depth)]; m++; }
-                                        if (x + step <= halo_depth+nx - 1 || neighbor_right  != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y, x + step, nx, ny, halo_depth)]; m++; }
-                                        if (y - step >= halo_depth        || neighbor_bottom != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y - step, x, nx, ny, halo_depth)]; m++; }
-                                        if (y + step <= halo_depth+ny - 1 || neighbor_top    != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z, y + step, x, nx, ny, halo_depth)]; m++; }
-                                        if (z - step >= halo_depth        || neighbor_back   != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z - step, y, x, nx, ny, halo_depth)]; m++; }
-                                        if (z + step <= halo_depth+nz - 1 || neighbor_front  != MPI_PROC_NULL) { accumulation += read_buffer[IDX(z + step, y, x, nx, ny, halo_depth)]; m++; }
+                                        if (x - step >= halo_depth || neighbor_left != MPI_PROC_NULL)
+                                        { 
+                                             accumulation += read_buffer[IDX(z, y, x - step, nx, ny, halo_depth)]; 
+                                             m++; 
+                                        }
+                                        if (x + step <= halo_depth+nx - 1 || neighbor_right != MPI_PROC_NULL) 
+                                        { 
+                                             accumulation += read_buffer[IDX(z, y, x + step, nx, ny, halo_depth)]; 
+                                             m++; 
+                                        }
+                                        if (y - step >= halo_depth || neighbor_bottom != MPI_PROC_NULL) 
+                                        { 
+                                             accumulation += read_buffer[IDX(z, y - step, x, nx, ny, halo_depth)]; 
+                                             m++; 
+                                        }
+                                        if (y + step <= halo_depth+ny - 1 || neighbor_top != MPI_PROC_NULL) 
+                                        { 
+                                             accumulation += read_buffer[IDX(z, y + step, x, nx, ny, halo_depth)]; 
+                                             m++; 
+                                        }
+                                        if (z - step >= halo_depth || neighbor_back != MPI_PROC_NULL) 
+                                        { 
+                                             accumulation += read_buffer[IDX(z - step, y, x, nx, ny, halo_depth)]; 
+                                             m++; 
+                                        }
+                                        if (z + step <= halo_depth+nz - 1 || neighbor_front  != MPI_PROC_NULL) 
+                                        { 
+                                             accumulation += read_buffer[IDX(z + step, y, x, nx, ny, halo_depth)]; 
+                                             m++; 
+                                        }
                                    }
 
                                    write_buffer[flat_idx] = accumulation / (double)m;
