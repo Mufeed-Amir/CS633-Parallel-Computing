@@ -7,7 +7,7 @@
 #define IDX(z, y, x, dim_x, dim_y, halo) ((x) + (y) * ((dim_x) + 2 * (halo)) + (z) * ((dim_x) + 2 * (halo)) * ((dim_y) + 2 * (halo)))
 
 // Optimal L1 Cache Block Size for double precision floating point operations
-#define CACHE_BLOCK_SIZE 16
+#define CACHE_BLOCK_SIZE 64
 
 // 1. Manually resolve 3D Cartesian topology neighbors based on process ID
 void find_process_neighbors(int process_id, int px, int py, int pz,
