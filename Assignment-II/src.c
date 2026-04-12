@@ -165,16 +165,14 @@ void integrate_incoming_halos(double *data_buffer, int nx, int ny, int nz, int h
  * Since this is one of the most computation intensive works we are doing in this code
  * we have optimized this using cache efficiency to go in jumps of the cache size (64)
 */
-long long compute_subdomain_region(
+void compute_subdomain_region(
     double *read_buffer, double *write_buffer,
     int z_start, int z_end, int y_start, int y_end, int x_start, int x_end,
     int nx, int ny, int nz,
-    int halo_depth, int d, double isovalue,
+    int halo_depth, int d,
     int neighbor_left, int neighbor_right, int neighbor_bottom,
     int neighbor_top, int neighbor_back, int neighbor_front)
 {
-     long long regional_iso_count = 0;
-
      // Cache Blocking (Loop Tiling) execution
      for (int block_z = z_start; block_z <= z_end; block_z += CACHE_BLOCK_SIZE)
      {
@@ -197,30 +195,7 @@ long long compute_subdomain_region(
                               {
                                    int flat_idx = IDX(z, y, x, nx, ny, halo_depth);
 
-                                   // --- A. Marching Cubes Surface Detection ---
-                                   double vertex[8];
-                                   vertex[0] = read_buffer[flat_idx];
-                                   vertex[1] = read_buffer[IDX(z, y, x + 1, nx, ny, halo_depth)];
-                                   vertex[2] = read_buffer[IDX(z, y + 1, x, nx, ny, halo_depth)];
-                                   vertex[3] = read_buffer[IDX(z, y + 1, x + 1, nx, ny, halo_depth)];
-                                   vertex[4] = read_buffer[IDX(z + 1, y, x, nx, ny, halo_depth)];
-                                   vertex[5] = read_buffer[IDX(z + 1, y, x + 1, nx, ny, halo_depth)];
-                                   vertex[6] = read_buffer[IDX(z + 1, y + 1, x, nx, ny, halo_depth)];
-                                   vertex[7] = read_buffer[IDX(z + 1, y + 1, x + 1, nx, ny, halo_depth)];
-
-                                   int vertices_below_threshold = 0;
-                                   for (int k = 0; k < 8; k++)
-                                   {
-                                        if (vertex[k] < isovalue)
-                                             vertices_below_threshold++;
-                                   }
-
-                                   if (vertices_below_threshold > 0 && vertices_below_threshold < 8)
-                                   {
-                                        regional_iso_count++;
-                                   }
-
-                                   // --- B. Variable D-Point Stencil ---
+                                   // --- Variable D-Point Stencil ---
                                    double accumulation = read_buffer[flat_idx];
                                    int m = 1; // actual neighbour count for divide-by-m at global boundaries
 
@@ -259,6 +234,65 @@ long long compute_subdomain_region(
                                    }
 
                                    write_buffer[flat_idx] = accumulation / (double)m;
+                              }
+                         }
+                    }
+               }
+          }
+     }
+}
+
+/* Count isovalue crossings in a region of a fully-computed buffer using the same
+ * cache-blocking structure. Called on write_buffer after all stencil passes are
+ * done so the count reflects post-stencil values (Halo -> stencil -> count).
+*/
+long long count_isovalues_region(
+    double *data,
+    int z_start, int z_end, int y_start, int y_end, int x_start, int x_end,
+    int nx, int ny, int nz, int halo_depth, double isovalue)
+{
+     long long regional_iso_count = 0;
+
+     for (int block_z = z_start; block_z <= z_end; block_z += CACHE_BLOCK_SIZE)
+     {
+          int limit_z = (block_z + CACHE_BLOCK_SIZE - 1 < z_end) ? block_z + CACHE_BLOCK_SIZE - 1 : z_end;
+
+          for (int block_y = y_start; block_y <= y_end; block_y += CACHE_BLOCK_SIZE)
+          {
+               int limit_y = (block_y + CACHE_BLOCK_SIZE - 1 < y_end) ? block_y + CACHE_BLOCK_SIZE - 1 : y_end;
+
+               for (int block_x = x_start; block_x <= x_end; block_x += CACHE_BLOCK_SIZE)
+               {
+                    int limit_x = (block_x + CACHE_BLOCK_SIZE - 1 < x_end) ? block_x + CACHE_BLOCK_SIZE - 1 : x_end;
+
+                    for (int z = block_z; z <= limit_z; z++)
+                    {
+                         for (int y = block_y; y <= limit_y; y++)
+                         {
+                              for (int x = block_x; x <= limit_x; x++)
+                              {
+                                   // --- A. Marching Cubes Surface Detection ---
+                                   double vertex[8];
+                                   vertex[0] = data[IDX(z, y, x,     nx, ny, halo_depth)];
+                                   vertex[1] = data[IDX(z, y, x + 1, nx, ny, halo_depth)];
+                                   vertex[2] = data[IDX(z, y + 1, x, nx, ny, halo_depth)];
+                                   vertex[3] = data[IDX(z, y + 1, x + 1, nx, ny, halo_depth)];
+                                   vertex[4] = data[IDX(z + 1, y, x,     nx, ny, halo_depth)];
+                                   vertex[5] = data[IDX(z + 1, y, x + 1, nx, ny, halo_depth)];
+                                   vertex[6] = data[IDX(z + 1, y + 1, x, nx, ny, halo_depth)];
+                                   vertex[7] = data[IDX(z + 1, y + 1, x + 1, nx, ny, halo_depth)];
+
+                                   int vertices_below_threshold = 0;
+                                   for (int k = 0; k < 8; k++)
+                                   {
+                                        if (vertex[k] < isovalue)
+                                             vertices_below_threshold++;
+                                   }
+
+                                   if (vertices_below_threshold > 0 && vertices_below_threshold < 8)
+                                   {
+                                        regional_iso_count++;
+                                   }
                               }
                          }
                     }
@@ -419,8 +453,7 @@ int main(int argc, char *argv[])
                }
 
                // 2. COMPUTE INNER CORE (Overlapping calculation while network transmits data)
-               long long field_count = 0;
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_L, I_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
+               compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_L, I_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
 
                // 3. WAIT FOR NETWORK COMPLETION
                MPI_Waitall(active_requests, network_requests, MPI_STATUSES_IGNORE);
@@ -429,14 +462,15 @@ int main(int argc, char *argv[])
                integrate_incoming_halos(read_buffer[i], nx, ny, nz, halo_depth, recv_l, recv_r, recv_b, recv_t, recv_bk, recv_fr, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);
 
                // 5. COMPUTE BOUNDARY SHELLS (Using exact non-overlapping geometrical regions)
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], D_L, I_L - 1, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // Z-Bot
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_Rz + 1, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // Z-Top
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, D_L, I_L - 1, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // Y-Bot
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_Ry + 1, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // Y-Top
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, D_L, I_L - 1, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // X-Left
-               field_count += compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_Rx + 1, D_Rx, nx, ny, nz, halo_depth, d, isovalue, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // X-Right
+               compute_subdomain_region(read_buffer[i], write_buffer[i], D_L, I_L - 1, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // Z-Bot
+               compute_subdomain_region(read_buffer[i], write_buffer[i], I_Rz + 1, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // Z-Top
+               compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, D_L, I_L - 1, D_L, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // Y-Bot
+               compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_Ry + 1, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // Y-Top
+               compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, D_L, I_L - 1, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front);   // X-Left
+               compute_subdomain_region(read_buffer[i], write_buffer[i], I_L, I_Rz, I_L, I_Ry, I_Rx + 1, D_Rx, nx, ny, nz, halo_depth, d, neighbor_left, neighbor_right, neighbor_bottom, neighbor_top, neighbor_back, neighbor_front); // X-Right
 
-               local_results[t * F + i] = field_count;
+               // 6. COUNT ISOVALUES on post-stencil write_buffer (Halo -> stencil -> count)
+               local_results[t * F + i] = count_isovalues_region(write_buffer[i], D_L, D_Rz, D_L, D_Ry, D_L, D_Rx, nx, ny, nz, halo_depth, isovalue);
 
                // Pointer Swap
                double *temp_ptr = read_buffer[i];
